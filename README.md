@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">  
-Aplicacion/Web en la que se vendera USB con aplicaciones portables con licencias para ahorrar tiempo de los clientes en la busqueda de app compatibles
+FIB sera un convertidor de aplicaciones no portables a una version portable
 </p>
 
 <h4 align="center">
@@ -19,6 +19,15 @@ Aplicacion/Web en la que se vendera USB con aplicaciones portables con licencias
 ## :hammer:Funcionalidad del proyecto
 
 - `Funcionalidad `: Creacion de aplicaciones que no poseen portabilidad
+
+## Acceso al proyecto
+
+<p align="center">
+Para que dicha apliacion pueda convertir la aplicacion a una version portable tendra que tener como minimo los siguientes 2 requisitos:
+</p>
+
+- `Requisito1 ` Tener la version oficial de la aplicacion a convertir
+- `Requisito2 ` Descargar nuestra aplicacion obteniedola "Aqui"
 
 ## ✔️Tecnologías utilizadas
 
