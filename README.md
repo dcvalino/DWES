@@ -8,6 +8,22 @@
 <img src="https://img.shields.io/badge/RELEASE-PROXIMANMEMENTE-violet">
 </p>
 
+Índice
+
+*[Título e imagen de portada](#Título-e-imagen-de-portada)
+
+*[Insignias](#insignias)
+
+*[Índice](#índice)
+
+*[Descripción del proyecto](#descripción-del-proyecto)
+
+*[Estado del proyecto](#Estado-del-proyecto)
+
+*[Acceso al proyecto](#acceso-proyecto)
+
+*[Tecnologías utilizadas](#tecnologías-utilizadas)
+
 <p align="center">  
 FIB sera un convertidor de aplicaciones no portables a una version portable
 </p>
