@@ -20,7 +20,8 @@ echo '<h2>'.$only_row['precio'].'</h2>';
 $query2 = 'SELECT * FROM tComentarios WHERE juego_id='.$juego_id;
 $result2 = mysqli_query($db, $query2) or die('Query error');
 while ($row = mysqli_fetch_array($result2)) {
-echo '<li>'.$row['comentario'].'</li>';
+ $fecha = date('d-m-Y', strtotime($row['fcomentario'])); 
+    echo '<li>' . $row['comentario'] . ' <br><small>Publicado el ' . $fecha . '</small></li>';
 }
 mysqli_close($db);
 ?>
