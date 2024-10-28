@@ -58,7 +58,7 @@ $result = mysqli_query($db, $query) or die('Error en la consulta');
                 $url_imagen = $row['url_imagen'];
                 ?>
                 <tr>
-                    <td><a href="/detail.php?id=<?php echo $id; ?>"><?php echo $id; ?></a></td>
+                    <td><a href="/detail.php?juego_id=<?php echo $id; ?>"><?php echo $id; ?></a></td>
                     <td><?php echo $nombre; ?></td>
                     <td><?php echo $precio; ?></td>
                     <td><?php echo $genero; ?></td>
