@@ -17,7 +17,7 @@ $result = mysqli_query($db, $query) or die('Error en la consulta');
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Consulta Tabla Juegos</title>
+    <title>Consulta Tabla Juegos</title> <a href="/logout.php">Logout</a>
     <style>
         table {
             width: 100%;
