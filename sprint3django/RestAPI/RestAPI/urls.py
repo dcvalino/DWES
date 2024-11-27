@@ -22,6 +22,7 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('test', views.pagina_de_prueba),
     path('juegos', views.devolver_juegos),
-    path('juegos/<int:id_solicitado>', views.devolver_juegos_por_id)
+    path('juegos/<int:id_solicitado>', views.devolver_juegos_por_id),
+    path('juegos/<int:juego_id>/comentarios', views.guardar_coemntarios)
 
 ]

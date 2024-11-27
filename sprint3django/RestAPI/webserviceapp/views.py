@@ -1,7 +1,8 @@
-from django.shortcuts import render
+from django.shortcuts import render, get_object_or_404
 from django.http import HttpResponse, JsonResponse
-
-from .models import Tjuegos
+from django.views.decorators.csrf import csrf_exempt
+from .models import Tjuegos, Tcomentarios
+import json
 
 # Create your views here.
 def pagina_de_prueba(request):
@@ -35,3 +36,15 @@ def devolver_juegos_por_id(request, id_solicitado):
 				'comentarios': lista_comentarios
 			}
 			return JsonResponse(resultado, json_dumps_params={'ensure_ascii': False})
+
+@csrf_exempt
+def guardar_coemntarios(request, juego_id):
+		if request.method != 'POST':
+				return None
+		
+		json_peticion = json.loads(request.body)
+		comentario = Tcomentarios()
+		comentario.comentario = json_peticion['nuevo_comentario']
+		comentario.juego = Tjuegos.objects.get(id = juego_id)
+		comentario.save()
+		return JsonResponse({"status": "ok"})
