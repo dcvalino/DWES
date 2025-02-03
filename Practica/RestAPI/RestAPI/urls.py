@@ -16,7 +16,29 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path
-
+from Proyecto import views
 urlpatterns = [
     path('admin/', admin.site.urls),
+
+
+    # Endpoints de eventos
+    path("eventos/listar/", views.ListarEventos, name="listar_evento"),
+    path("eventos/crear/", views.CrearEvento, name="crear_evento"),
+    path("eventos/actualizar/<int:id>/", views.ActualizarEvento, name="actualizar_evento"),
+    path("eventos/borrar/<int:id>/", views.BorrarEvento, name="borrar_evento"),
+
+    # Endpoints de reservas
+    path("reservas/crear/", views.CrearReserva, name="crear_reserva"),
+    path("reservas/actualizar/<int:id>/", views.ActualizarReserva, name="actualizar_reserva"),
+    path("reservas/cancelar/<int:id>/", views.CancelarReserva, name="cancelar_reserva"),
+    path("reservas/listar/<int:id>/", views.listarReservas, name="listar_reservas"),
+
+    # Endpoints de comentarios
+    path("comentarios/crear/<int:id>/", views.CrearComentario, name="crear_comentario"),
+    path("comentarios/listar/<int:id>/", views.ListarComentarios, name="listar_comentarios"),
+
+    #Endpoint de registrar
+    path("register/", views.Register, name="Register"),
+    path("login/", views.Login, name="login"),
 ]
+
