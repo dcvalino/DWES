@@ -9,7 +9,7 @@ class UsuarioPersonalizado(AbstractUser):
     ]
     tipo = models.CharField(max_length=20, choices=TIPO_USUARIO, default='asistente')
     nombre = models.CharField(max_length=25)
-    mail = models.CharField(max_length=100)
+    email = models.CharField(max_length=100, unique=True)
     contrasenha = models.CharField(max_length=100)
     biografia = models.TextField(blank=True, null=True)
 

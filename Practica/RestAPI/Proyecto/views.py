@@ -77,16 +77,10 @@ def CrearEvento(request):
     except json.JSONDecodeError:
         return JsonResponse({"error": "Datos JSON inválidos"}, status=400)
 
-    # Verificar si el usuario está autenticado
-    if request.user.is_anonymous:
-        return JsonResponse({"error": "Usuario no autenticado"}, status=401)
 
     # Buscar organizador en los datos (opcional)
-    organizador_id = data.get("organizador", request.user.id)
-    try:
-        organizador = UsuarioPersonalizado.objects.get(id=organizador_id)
-    except UsuarioPersonalizado.DoesNotExist:
-        return JsonResponse({"error": "Organizador no válido"}, status=400)
+    organizador_name = data.get("organizador", request.user.id)
+    organizador = get_object_or_404(UsuarioPersonalizado, id=organizador_name)
 
     evento = Eventos.objects.create(
         titulo=data.get("titulo", ""),
@@ -255,49 +249,71 @@ def CrearComentario(request, id):
 #Usuario:
 #POST: Login
 @csrf_exempt
-def Login (request):
-    if request.method == "POST":
-            data = json.loads(request.body)
-            email = data.get("email")
-            contrasenha = data.get("contrasenha")
+def Login(request):
+    if request.method != 'POST':
+        return JsonResponse({"error": "El cuerpo de la solicitud no es un JSON válido."}, status=400)
 
-            usuario = UsuarioPersonalizado.objects.filter(email=email).first()
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({"error": "El cuerpo de la solicitud no es un JSON válido."}, status=400)
 
-            if usuario is None:
-                return JsonResponse({"error": "Usuario no encontrado"}, status=404)
+    email = data.get("email")
+    contrasenha = data.get("contrasenha")
 
-            if usuario.contrasenha != contrasenha:
-                return JsonResponse({"error": "Contraseña incorrecta"}, status=401)
+    if not email or not contrasenha:
+        return JsonResponse({"error": "Faltan datos requeridos."}, status=400)
 
-            return JsonResponse({
-                "id": usuario.id,
-                "email": usuario.email,
-                "tipo": usuario.tipo,
-                "mensaje": "Inicio de sesión exitoso"
-            }, status=200)
+    try:
+        usuario = UsuarioPersonalizado.objects.get(email=email)
+    except UsuarioPersonalizado.DoesNotExist:
+        return JsonResponse({"error": "Credenciales inválidas."}, status=400)
+
+    if usuario.contrasenha != contrasenha:
+        return JsonResponse({"error": "Credenciales inválidas."}, status=400)
+
+    return JsonResponse({"mensaje": "Inicio de sesión exitoso."})
+
+
 
 
 #POST: Register
 @csrf_exempt
-def Register (request):
-    global usuario
-    if request.method == "POST":
-        data = json.loads(request.body)
-        email = data.get("email")
-        contrasenha = data.get("contrasenha")
-        tipo = data.get("tipo", "asistente")
-        if not email or not contrasenha:
-            return JsonResponse({"error": "Email y contraseña son obligatorios"}, status=400)
+def Register(request):
+    if request.method != 'POST':
+        return JsonResponse({"error": "Método no permitido"}, status=405)
 
+    try:
+        # Cargar el JSON enviado en el cuerpo de la solicitud
+        data = json.loads(request.body)
+
+        # Obtener datos del JSON
+        nombre = data.get('nombre')
+        email = data.get('email')
+        contrasenha = data.get('contrasenha')
+        tipo = data.get('tipo')
+        biografia = data.get('biografia', '')
+
+        # Validación: verificar que todos los datos requeridos estén presentes
+        if not all([nombre, email, contrasenha, tipo]):
+            return JsonResponse({"error": "Faltan datos requeridos."}, status=400)
+
+        # Verificar si ya existe un usuario con el mismo email
         if UsuarioPersonalizado.objects.filter(email=email).exists():
-            return JsonResponse({"error": "El usuario ya está registrado"})
+            return JsonResponse({"error": "El email ya está registrado."}, status=400)
+
+        # Crear el usuario
         usuario = UsuarioPersonalizado.objects.create(
+            username=email,
+            nombre=nombre,
             email=email,
-            contrasenha=contrasenha,
-            tipo=tipo)
-    return JsonResponse({
-                "id": usuario.id,
-                "email": usuario.email,
-                "tipo": usuario.tipo,
-                "mensaje": "Usuario registrado exitosamente"
-            }, status=201)
+            contrasenha=contrasenha,  # ⚠ Se guarda en texto plano (no recomendado para producción)
+            tipo=tipo,
+            biografia=biografia
+        )
+        usuario.save()
+
+        return JsonResponse({"mensaje": "Usuario registrado correctamente."}, status=201)
+
+    except json.JSONDecodeError:
+        return JsonResponse({"error": "El cuerpo de la solicitud no es un JSON válido."}, status=400)
