@@ -18,29 +18,30 @@ from django.contrib import admin
 from django.urls import path
 from Proyecto import views
 from rest_framework.authtoken.views import obtain_auth_token
-
+from drf_yasg.views import get_schema_view
+from drf_yasg import openapi
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api-token-auth/', obtain_auth_token, name='api_token_auth'),
+    path('swagger/', schema_view.with_ui('swagger', cache_timeout=0), name='schema-swagger-ui'),
+    path('redoc/', schema_view.with_ui('redoc', cache_timeout=0), name='schema-redoc'),
 
-    # Endpoints de eventos
-    path("eventos/listar/", views.ListarEventos, name="listar_evento"),
-    path("eventos/crear/", views.CrearEvento, name="crear_evento"),
-    path("eventos/actualizar/<int:id>/", views.ActualizarEvento, name="actualizar_evento"),
-    path("eventos/borrar/<int:id>/", views.BorrarEvento, name="borrar_evento"),
-
-    # Endpoints de reservas
-    path("reservas/crear/", views.CrearReserva, name="crear_reserva"),
-    path("reservas/actualizar/<int:id>/", views.ActualizarReserva, name="actualizar_reserva"),
-    path("reservas/cancelar/<int:id>/", views.CancelarReserva, name="cancelar_reserva"),
-    path("reservas/listar/<int:id>/", views.listarReservas, name="listar_reservas"),
-
-    # Endpoints de comentarios
-    path("comentarios/crear/<int:id>/", views.CrearComentario, name="crear_comentario"),
-    path("comentarios/listar/<int:id>/", views.ListarComentarios, name="listar_comentarios"),
-
-    #Endpoint de registrar
-    path("register/", views.Register, name="Register"),
-    path("login/", views.Login, name="login"),
+    #Endpoints de Eventos
+    path("eventos/listar/", views.ListarEventosView.as_view(), name="listar_evento"),
+    path("eventos/crear/", views.CrearEventoView.as_view(), name="crear_evento"),
+    path("eventos/actualizar/<int:id>/", views.ActualizarEventoView.as_view(), name="actualizar_evento"),
+    path("eventos/borrar/<int:id>/", views.BorrarEventoView.as_view(), name="borrar_evento"),
+    #Endpoints de Reservas
+    path("reservas/listar/<int:id>/", views.ListarReservasView.as_view(), name="listar_reservas"),
+    path("reservas/crear/", views.CrearReservaView.as_view(), name="crear_reserva"),
+    path("reservas/actualizar/<int:id>/", views.ActualizarReservaView.as_view(), name="actualizar_reserva"),
+    path("reservas/cancelar/<int:id>/", views.CancelarReservaView.as_view(), name="cancelar_reserva"),
+    #Endpoints de Comentarios
+    path("comentarios/listar/<int:id>/", views.ListarComentariosView.as_view(), name="listar_comentarios"),
+    path("comentarios/crear/<int:id>/", views.CrearComentarioView.as_view(), name="crear_comentario"),
+    #Endpoints de Login
+    path("login/", views.LoginView.as_view(), name="login"),
+    path("register/", views.RegisterView.as_view(), name="register"),
 ]
+
 
