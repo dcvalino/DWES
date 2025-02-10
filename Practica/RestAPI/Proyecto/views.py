@@ -8,18 +8,66 @@ from django.core.paginator import Paginator
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from .permissions import IsOrganizador, IsParticipante
+from rest_framework.authtoken.models import Token
+from rest_framework.authentication import TokenAuthentication
 
+# Importamos las utilidades de drf-yasg
+from drf_yasg.utils import swagger_auto_schema
+from drf_yasg import openapi
 
-# Create your views here.
-
+##################################
 # CRUD de eventos:
-# GET: Listas todos los eventos disponibles
+
 class ListarEventosView(APIView):
     """
     GET: Lista todos los eventos disponibles con filtros y paginación.
     """
+    permission_classes = [AllowAny]
+    authentication_classes = []
+
+    # Definición de parámetros de query
+    titulo_param = openapi.Parameter('titulo', openapi.IN_QUERY, description="Filtro por título", type=openapi.TYPE_STRING)
+    fecha_param = openapi.Parameter('fecha', openapi.IN_QUERY, description="Filtro por fecha (YYYY-MM-DD)", type=openapi.TYPE_STRING)
+    limite_param = openapi.Parameter('limite', openapi.IN_QUERY, description="Número de eventos por página", type=openapi.TYPE_INTEGER, default=5)
+    pagina_param = openapi.Parameter('pagina', openapi.IN_QUERY, description="Número de página", type=openapi.TYPE_INTEGER, default=1)
+
+    @swagger_auto_schema(
+        manual_parameters=[titulo_param, fecha_param, limite_param, pagina_param],
+        responses={200: openapi.Response('Listado de eventos', schema=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            properties={
+                'count': openapi.Schema(type=openapi.TYPE_INTEGER),
+                'total_pages': openapi.Schema(type=openapi.TYPE_INTEGER),
+                'current_page': openapi.Schema(type=openapi.TYPE_INTEGER),
+                'next': openapi.Schema(type=openapi.TYPE_INTEGER, nullable=True),
+                'previous': openapi.Schema(type=openapi.TYPE_INTEGER, nullable=True),
+                'results': openapi.Schema(
+                    type=openapi.TYPE_ARRAY,
+                    items=openapi.Schema(
+                        type=openapi.TYPE_OBJECT,
+                        properties={
+                            'id': openapi.Schema(type=openapi.TYPE_INTEGER),
+                            'titulo': openapi.Schema(type=openapi.TYPE_STRING),
+                            'descripcion': openapi.Schema(type=openapi.TYPE_STRING),
+                            'fecha': openapi.Schema(type=openapi.TYPE_STRING),
+                            'capacidad': openapi.Schema(type=openapi.TYPE_INTEGER),
+                            'url': openapi.Schema(type=openapi.TYPE_STRING),
+                            'organizador': openapi.Schema(
+                                type=openapi.TYPE_OBJECT,
+                                properties={
+                                    'id': openapi.Schema(type=openapi.TYPE_INTEGER),
+                                    'nombre': openapi.Schema(type=openapi.TYPE_STRING),
+                                    'email': openapi.Schema(type=openapi.TYPE_STRING)
+                                }
+                            )
+                        }
+                    )
+                )
+            }
+        ))}
+    )
     def get(self, request):
         titulo_filtro = request.query_params.get("titulo", "")
         fecha_filtro = request.query_params.get("fecha", "")
@@ -66,17 +114,39 @@ class ListarEventosView(APIView):
         return Response(data, status=status.HTTP_200_OK)
 
 
-
 class CrearEventoView(APIView):
     """
     POST: Crea un evento. (Acceso solo para organizadores)
     """
+    authentication_classes = [TokenAuthentication]
     permission_classes = [IsAuthenticated, IsOrganizador]
 
+    # Esquema del request para crear un evento
+    evento_request = openapi.Schema(
+        type=openapi.TYPE_OBJECT,
+        required=['titulo', 'descripcion', 'fecha', 'capacidad', 'url'],
+        properties={
+            'titulo': openapi.Schema(type=openapi.TYPE_STRING, description="Título del evento"),
+            'descripcion': openapi.Schema(type=openapi.TYPE_STRING, description="Descripción del evento"),
+            'fecha': openapi.Schema(type=openapi.TYPE_STRING, format='date', description="Fecha del evento (YYYY-MM-DD)"),
+            'capacidad': openapi.Schema(type=openapi.TYPE_INTEGER, description="Capacidad del evento"),
+            'url': openapi.Schema(type=openapi.TYPE_STRING, description="URL relacionada al evento")
+        }
+    )
+
+    @swagger_auto_schema(
+        request_body=evento_request,
+        responses={201: openapi.Response('Evento creado', schema=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            properties={
+                'id': openapi.Schema(type=openapi.TYPE_INTEGER),
+                'mensaje': openapi.Schema(type=openapi.TYPE_STRING)
+            }
+        ))}
+    )
     def post(self, request):
         data = request.data
-        # Se asume que el usuario autenticado es el organizador
-        organizador = request.user
+        organizador = request.user  # Se asume que el usuario autenticado es el organizador
         evento = Eventos.objects.create(
             titulo=data.get("titulo", ""),
             descripcion=data.get("descripcion", ""),
@@ -88,14 +158,32 @@ class CrearEventoView(APIView):
         return Response({"id": evento.id, "mensaje": "Evento creado"}, status=status.HTTP_201_CREATED)
 
 
-
-# PUT/PATCH: Actualizar un evento (solo organizadores)º
 class ActualizarEventoView(APIView):
     """
     PUT/PATCH: Actualiza un evento. (Acceso solo para organizadores)
     """
+    authentication_classes = [TokenAuthentication]
     permission_classes = [IsAuthenticated, IsOrganizador]
 
+    evento_update_request = openapi.Schema(
+        type=openapi.TYPE_OBJECT,
+        properties={
+            'titulo': openapi.Schema(type=openapi.TYPE_STRING, description="Título del evento"),
+            'descripcion': openapi.Schema(type=openapi.TYPE_STRING, description="Descripción del evento"),
+            'fecha': openapi.Schema(type=openapi.TYPE_STRING, format='date', description="Fecha del evento (YYYY-MM-DD)"),
+            'capacidad': openapi.Schema(type=openapi.TYPE_INTEGER, description="Capacidad del evento"),
+            'url': openapi.Schema(type=openapi.TYPE_STRING, description="URL relacionada al evento"),
+            'organizador': openapi.Schema(type=openapi.TYPE_INTEGER, description="ID del organizador (opcional)")
+        }
+    )
+
+    @swagger_auto_schema(
+        request_body=evento_update_request,
+        responses={200: openapi.Response('Evento actualizado', schema=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            properties={'mensaje': openapi.Schema(type=openapi.TYPE_STRING)}
+        ))}
+    )
     def put(self, request, id):
         data = request.data
         evento = get_object_or_404(Eventos, id=id)
@@ -109,34 +197,63 @@ class ActualizarEventoView(APIView):
         evento.save()
         return Response({"mensaje": "Evento actualizado"}, status=status.HTTP_200_OK)
 
+    @swagger_auto_schema(
+        request_body=evento_update_request,
+        responses={200: openapi.Response('Evento actualizado', schema=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            properties={'mensaje': openapi.Schema(type=openapi.TYPE_STRING)}
+        ))}
+    )
     def patch(self, request, id):
-        # Se delega en el método PUT para actualizar parcialmente
         return self.put(request, id)
 
-# DELETE: Eliminar un evento (solo organizadores)
+
 class BorrarEventoView(APIView):
     """
     DELETE: Elimina un evento. (Acceso solo para organizadores)
     """
+    authentication_classes = [TokenAuthentication]
     permission_classes = [IsAuthenticated, IsOrganizador]
 
+    @swagger_auto_schema(
+        responses={200: openapi.Response('Evento eliminado', schema=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            properties={'mensaje': openapi.Schema(type=openapi.TYPE_STRING)}
+        ))}
+    )
     def delete(self, request, id):
         evento = get_object_or_404(Eventos, id=id)
         evento.delete()
         return Response({"mensaje": "Evento eliminado"}, status=status.HTTP_200_OK)
 
-        ##################################
+##################################
+# Gestión de reservas:
 
-
-# Gestion de reservas:
-
-# GET: Listar reservas de un usuario autenticado.
 class ListarReservasView(APIView):
     """
     GET: Lista las reservas de un evento.
     """
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]
+    authentication_classes = []
 
+    @swagger_auto_schema(
+        manual_parameters=[
+            openapi.Parameter('id', openapi.IN_PATH, description="ID del evento", type=openapi.TYPE_INTEGER)
+        ],
+        responses={200: openapi.Response('Listado de reservas', schema=openapi.Schema(
+            type=openapi.TYPE_ARRAY,
+            items=openapi.Schema(
+                type=openapi.TYPE_OBJECT,
+                properties={
+                    'id': openapi.Schema(type=openapi.TYPE_INTEGER),
+                    'usuario': openapi.Schema(type=openapi.TYPE_INTEGER),
+                    'evento': openapi.Schema(type=openapi.TYPE_INTEGER),
+                    'entradas_reservadas': openapi.Schema(type=openapi.TYPE_INTEGER),
+                    'estado': openapi.Schema(type=openapi.TYPE_STRING)
+                }
+            )
+        ))}
+    )
     def get(self, request, id):
         evento = get_object_or_404(Eventos, id=id)
         reservas = Reservas.objects.filter(evento=evento)
@@ -152,13 +269,34 @@ class ListarReservasView(APIView):
         return Response(data, status=status.HTTP_200_OK)
 
 
-# POST: Crear una nueva reserva.
 class CrearReservaView(APIView):
     """
     POST: Crea una reserva. (Acceso solo para participantes)
     """
+    authentication_classes = [TokenAuthentication]
     permission_classes = [IsAuthenticated, IsParticipante]
 
+    reserva_request = openapi.Schema(
+        type=openapi.TYPE_OBJECT,
+        required=['usuario', 'evento', 'entradas_reservadas', 'estado'],
+        properties={
+            'usuario': openapi.Schema(type=openapi.TYPE_INTEGER, description="ID del usuario"),
+            'evento': openapi.Schema(type=openapi.TYPE_INTEGER, description="ID del evento"),
+            'entradas_reservadas': openapi.Schema(type=openapi.TYPE_INTEGER, description="Número de entradas reservadas"),
+            'estado': openapi.Schema(type=openapi.TYPE_STRING, description="Estado de la reserva")
+        }
+    )
+
+    @swagger_auto_schema(
+        request_body=reserva_request,
+        responses={201: openapi.Response('Reserva creada', schema=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            properties={
+                'id': openapi.Schema(type=openapi.TYPE_INTEGER),
+                'mensaje': openapi.Schema(type=openapi.TYPE_STRING)
+            }
+        ))}
+    )
     def post(self, request):
         data = request.data
         usuario = get_object_or_404(UsuarioPersonalizado, id=data["usuario"])
@@ -172,13 +310,30 @@ class CrearReservaView(APIView):
         return Response({"id": reserva.id, "mensaje": "Se ha creado la reserva"}, status=status.HTTP_201_CREATED)
 
 
-# PUT/PATCH: Actualizar el estado de una reserva (solo organizadores).
 class ActualizarReservaView(APIView):
     """
     PUT/PATCH: Actualiza una reserva. (Acceso solo para organizadores)
     """
+    authentication_classes = [TokenAuthentication]
     permission_classes = [IsAuthenticated, IsOrganizador]
 
+    reserva_update_request = openapi.Schema(
+        type=openapi.TYPE_OBJECT,
+        properties={
+            'usuario': openapi.Schema(type=openapi.TYPE_INTEGER, description="ID del usuario"),
+            'evento': openapi.Schema(type=openapi.TYPE_INTEGER, description="ID del evento"),
+            'entradas_reservadas': openapi.Schema(type=openapi.TYPE_INTEGER, description="Número de entradas reservadas"),
+            'estado': openapi.Schema(type=openapi.TYPE_STRING, description="Estado de la reserva")
+        }
+    )
+
+    @swagger_auto_schema(
+        request_body=reserva_update_request,
+        responses={200: openapi.Response('Reserva actualizada', schema=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            properties={'mensaje': openapi.Schema(type=openapi.TYPE_STRING)}
+        ))}
+    )
     def put(self, request, id):
         data = request.data
         reserva = get_object_or_404(Reservas, id=id)
@@ -191,34 +346,66 @@ class ActualizarReservaView(APIView):
         reserva.save()
         return Response({"mensaje": "Reserva actualizada"}, status=status.HTTP_200_OK)
 
+    @swagger_auto_schema(
+        request_body=reserva_update_request,
+        responses={200: openapi.Response('Reserva actualizada', schema=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            properties={'mensaje': openapi.Schema(type=openapi.TYPE_STRING)}
+        ))}
+    )
     def patch(self, request, id):
         return self.put(request, id)
 
 
-# DELETE: Cancelar una reserva (solo participantes para sus reservas).
 class CancelarReservaView(APIView):
     """
     DELETE: Cancela una reserva. (Solo el titular de la reserva, participante, puede cancelarla)
     """
+    authentication_classes = [TokenAuthentication]
     permission_classes = [IsAuthenticated, IsParticipante]
 
+    @swagger_auto_schema(
+        manual_parameters=[
+            openapi.Parameter('id', openapi.IN_PATH, description="ID de la reserva", type=openapi.TYPE_INTEGER)
+        ],
+        responses={200: openapi.Response('Reserva eliminada', schema=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            properties={'mensaje': openapi.Schema(type=openapi.TYPE_STRING)}
+        ))}
+    )
     def delete(self, request, id):
         reserva = get_object_or_404(Reservas, id=id)
         if request.user != reserva.usuario:
             return Response({"error": "¡No eres el titular!"}, status=status.HTTP_403_FORBIDDEN)
         reserva.delete()
         return Response({"mensaje": "Reserva eliminada"}, status=status.HTTP_200_OK)
-        ###################################
 
+##################################
+# Comentarios:
 
-# Comentario:
-# GET: Listar comentarios de un evento.
 class ListarComentariosView(APIView):
     """
     GET: Lista los comentarios de un evento.
     """
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]
+    authentication_classes = []
 
+    @swagger_auto_schema(
+        manual_parameters=[
+            openapi.Parameter('id', openapi.IN_PATH, description="ID del evento", type=openapi.TYPE_INTEGER)
+        ],
+        responses={200: openapi.Response('Listado de comentarios', schema=openapi.Schema(
+            type=openapi.TYPE_ARRAY,
+            items=openapi.Schema(
+                type=openapi.TYPE_OBJECT,
+                properties={
+                    'id': openapi.Schema(type=openapi.TYPE_INTEGER),
+                    'texto': openapi.Schema(type=openapi.TYPE_STRING),
+                    'FechaC': openapi.Schema(type=openapi.TYPE_STRING)
+                }
+            )
+        ))}
+    )
     def get(self, request, id):
         evento = get_object_or_404(Eventos, id=id)
         comentarios = Comentarios.objects.filter(evento=evento)
@@ -232,14 +419,31 @@ class ListarComentariosView(APIView):
         return Response(data, status=status.HTTP_200_OK)
 
 
-
-# POST: Crear un comentario asociado a un evento (solo usuarios autenticados).
 class CrearComentarioView(APIView):
     """
     POST: Crea un comentario asociado a un evento.
     """
+    authentication_classes = [TokenAuthentication]
     permission_classes = [IsAuthenticated]
 
+    comentario_request = openapi.Schema(
+        type=openapi.TYPE_OBJECT,
+        required=['texto'],
+        properties={
+            'texto': openapi.Schema(type=openapi.TYPE_STRING, description="Texto del comentario")
+        }
+    )
+
+    @swagger_auto_schema(
+        request_body=comentario_request,
+        responses={201: openapi.Response('Comentario creado', schema=openapi.Schema(
+            type=openapi.TYPE_OBJECT,
+            properties={
+                'id': openapi.Schema(type=openapi.TYPE_INTEGER),
+                'mensaje': openapi.Schema(type=openapi.TYPE_STRING)
+            }
+        ))}
+    )
     def post(self, request, id):
         evento = get_object_or_404(Eventos, id=id)
         data = request.data
@@ -249,75 +453,111 @@ class CrearComentarioView(APIView):
         )
         return Response({"id": comentario.id, "mensaje": "Se ha creado el comentario"}, status=status.HTTP_201_CREATED)
 
-        ###################################
-
-
+##################################
 # Usuario:
-# POST: Login
-@csrf_exempt
-def Login(request):
-    if request.method != 'POST':
-        return JsonResponse({"error": "El cuerpo de la solicitud no es un JSON válido."}, status=400)
 
-    try:
-        data = json.loads(request.body)
-    except json.JSONDecodeError:
-        return JsonResponse({"error": "El cuerpo de la solicitud no es un JSON válido."}, status=400)
+class LoginView(APIView):
+    """
+    POST: Realiza el login del usuario y devuelve un token de autenticación.
+    """
+    permission_classes = []
 
-    email = data.get("email")
-    contrasenha = data.get("contrasenha")
+    login_request = openapi.Schema(
+        type=openapi.TYPE_OBJECT,
+        required=['email', 'contrasenha'],
+        properties={
+            'email': openapi.Schema(type=openapi.TYPE_STRING, description="Email del usuario"),
+            'contrasenha': openapi.Schema(type=openapi.TYPE_STRING, description="Contraseña del usuario")
+        }
+    )
 
-    if not email or not contrasenha:
-        return JsonResponse({"error": "Faltan datos requeridos."}, status=400)
+    @swagger_auto_schema(
+        request_body=login_request,
+        responses={
+            200: openapi.Response('Login exitoso', schema=openapi.Schema(
+                type=openapi.TYPE_OBJECT,
+                properties={
+                    'token': openapi.Schema(type=openapi.TYPE_STRING),
+                    'mensaje': openapi.Schema(type=openapi.TYPE_STRING)
+                }
+            )),
+            400: "Credenciales inválidas."
+        }
+    )
+    def post(self, request):
+        data = request.data
+        email = data.get("email")
+        contrasenha = data.get("contrasenha")
 
-    try:
-        usuario = UsuarioPersonalizado.objects.get(email=email)
-    except UsuarioPersonalizado.DoesNotExist:
-        return JsonResponse({"error": "Credenciales inválidas."}, status=400)
+        if not email or not contrasenha:
+            return Response({"error": "Faltan datos requeridos."}, status=status.HTTP_400_BAD_REQUEST)
 
-    if usuario.contrasenha != contrasenha:
-        return JsonResponse({"error": "Credenciales inválidas."}, status=400)
+        try:
+            usuario = UsuarioPersonalizado.objects.get(email=email)
+        except UsuarioPersonalizado.DoesNotExist:
+            return Response({"error": "Credenciales inválidas."}, status=status.HTTP_400_BAD_REQUEST)
 
-    return JsonResponse({"mensaje": "Inicio de sesión exitoso."})
+        if usuario.contrasenha != contrasenha:
+            return Response({"error": "Credenciales inválidas."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Obtener o crear el token
+        token, created = Token.objects.get_or_create(user=usuario)
+
+        return Response({
+            "token": token.key,
+            "mensaje": "Inicio de sesión exitoso."
+        }, status=status.HTTP_200_OK)
 
 
-# POST: Register
-@csrf_exempt
-def Register(request):
-    if request.method != 'POST':
-        return JsonResponse({"error": "Método no permitido"}, status=405)
+class RegisterView(APIView):
+    """
+    POST: Registra un nuevo usuario.
+    """
+    permission_classes = []
 
-    try:
-        # Cargar el JSON enviado en el cuerpo de la solicitud
-        data = json.loads(request.body)
+    register_request = openapi.Schema(
+        type=openapi.TYPE_OBJECT,
+        required=['nombre', 'email', 'contrasenha', 'tipo'],
+        properties={
+            'nombre': openapi.Schema(type=openapi.TYPE_STRING, description="Nombre del usuario"),
+            'email': openapi.Schema(type=openapi.TYPE_STRING, description="Email del usuario"),
+            'contrasenha': openapi.Schema(type=openapi.TYPE_STRING, description="Contraseña del usuario"),
+            'tipo': openapi.Schema(type=openapi.TYPE_STRING, description="Tipo de usuario (organizador, asistente, etc.)"),
+            'biografia': openapi.Schema(type=openapi.TYPE_STRING, description="Biografía (opcional)")
+        }
+    )
 
-        # Obtener datos del JSON
-        nombre = data.get('nombre')
-        email = data.get('email')
-        contrasenha = data.get('contrasenha')
-        tipo = data.get('tipo')
-        biografia = data.get('biografia', '')
+    @swagger_auto_schema(
+        request_body=register_request,
+        responses={
+            201: openapi.Response('Usuario registrado', schema=openapi.Schema(
+                type=openapi.TYPE_OBJECT,
+                properties={'mensaje': openapi.Schema(type=openapi.TYPE_STRING)}
+            )),
+            400: "Faltan datos requeridos o el email ya está registrado."
+        }
+    )
+    def post(self, request):
+        data = request.data
+        nombre = data.get("nombre")
+        email = data.get("email")
+        contrasenha = data.get("contrasenha")
+        tipo = data.get("tipo")
+        biografia = data.get("biografia", "")
 
-        # Validación: verificar que todos los datos requeridos estén presentes
         if not all([nombre, email, contrasenha, tipo]):
-            return JsonResponse({"error": "Faltan datos requeridos."}, status=400)
-
-        # Verificar si ya existe un usuario con el mismo email
+            return Response({"error": "Faltan datos requeridos."}, status=status.HTTP_400_BAD_REQUEST)
         if UsuarioPersonalizado.objects.filter(email=email).exists():
-            return JsonResponse({"error": "El email ya está registrado."}, status=400)
+            return Response({"error": "El email ya está registrado."}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Crear el usuario
         usuario = UsuarioPersonalizado.objects.create(
             username=email,
             nombre=nombre,
             email=email,
-            contrasenha=contrasenha,  # ⚠ Se guarda en texto plano (no recomendado para producción)
+            contrasenha=contrasenha,  # Se almacena en texto plano; en producción usar hash.
             tipo=tipo,
             biografia=biografia
         )
         usuario.save()
+        return Response({"mensaje": "Usuario registrado correctamente."}, status=status.HTTP_201_CREATED)
 
-        return JsonResponse({"mensaje": "Usuario registrado correctamente."}, status=201)
-
-    except json.JSONDecodeError:
-        return JsonResponse({"error": "El cuerpo de la solicitud no es un JSON válido."}, status=400)
