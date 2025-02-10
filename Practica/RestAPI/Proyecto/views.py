@@ -131,86 +131,83 @@ class BorrarEventoView(APIView):
 # Gestion de reservas:
 
 # GET: Listar reservas de un usuario autenticado.
-@csrf_exempt
-def listarReservas(request, id):
-    if (request.method == 'GET'):
-        reservas = Reservas.objects.all()
+class ListarReservasView(APIView):
+    """
+    GET: Lista las reservas de un evento.
+    """
+    permission_classes = [IsAuthenticated]
 
+    def get(self, request, id):
         evento = get_object_or_404(Eventos, id=id)
-
         reservas = Reservas.objects.filter(evento=evento)
-
-        data = [
-            {
+        data = []
+        for reserva in reservas:
+            data.append({
                 "id": reserva.id,
                 "usuario": reserva.usuario.id if reserva.usuario else None,
                 "evento": reserva.evento.id,
                 "entradas_reservadas": reserva.entradas_reservadas,
                 "estado": reserva.estado,
-            }
-            for reserva in reservas
-        ]
-
-        return JsonResponse(data, safe=False)
+            })
+        return Response(data, status=status.HTTP_200_OK)
 
 
 # POST: Crear una nueva reserva.
-@csrf_exempt
-def CrearReserva(request):
-    if request.method == "POST":
-        data = json.loads(request.body)
+class CrearReservaView(APIView):
+    """
+    POST: Crea una reserva. (Acceso solo para participantes)
+    """
+    permission_classes = [IsAuthenticated, IsParticipante]
+
+    def post(self, request):
+        data = request.data
         usuario = get_object_or_404(UsuarioPersonalizado, id=data["usuario"])
         evento = get_object_or_404(Eventos, id=data["evento"])
-
         reserva = Reservas.objects.create(
             usuario=usuario,
             evento=evento,
             entradas_reservadas=data["entradas_reservadas"],
             estado=data["estado"],
         )
-        return JsonResponse({"id": reserva.id, "mensaje": "Se ha creado la reserva"})
+        return Response({"id": reserva.id, "mensaje": "Se ha creado la reserva"}, status=status.HTTP_201_CREATED)
 
 
 # PUT/PATCH: Actualizar el estado de una reserva (solo organizadores).
-@csrf_exempt
-def ActualizarReserva(request, id):
-    if request.method not in ["PUT", "PATCH"]:
-        return JsonResponse({"error": "Método no permitido"}, status=405)
+class ActualizarReservaView(APIView):
+    """
+    PUT/PATCH: Actualiza una reserva. (Acceso solo para organizadores)
+    """
+    permission_classes = [IsAuthenticated, IsOrganizador]
 
-    try:
-        data = json.loads(request.body)
-    except json.JSONDecodeError:
-        return JsonResponse({"error": "Datos inválidos"}, status=400)
+    def put(self, request, id):
+        data = request.data
+        reserva = get_object_or_404(Reservas, id=id)
+        if "usuario" in data:
+            reserva.usuario = get_object_or_404(UsuarioPersonalizado, id=data["usuario"])
+        if "evento" in data:
+            reserva.evento = get_object_or_404(Eventos, id=data["evento"])
+        reserva.entradas_reservadas = data.get("entradas_reservadas", reserva.entradas_reservadas)
+        reserva.estado = data.get("estado", reserva.estado)
+        reserva.save()
+        return Response({"mensaje": "Reserva actualizada"}, status=status.HTTP_200_OK)
 
-    reserva = get_object_or_404(Reservas, id=id)
-
-    if "usuario" in data:
-        reserva.usuario = get_object_or_404(UsuarioPersonalizado, id=data["usuario"])
-
-    if "evento" in data:
-        reserva.evento = get_object_or_404(Eventos, id=data["evento"])
-
-    reserva.entradas_reservadas = data.get("entradas_reservadas", reserva.entradas_reservadas)
-    reserva.estado = data.get("estado", reserva.estado)
-
-    reserva.save()
-
-    return JsonResponse({"mensaje": "Reserva Actualizada"})
+    def patch(self, request, id):
+        return self.put(request, id)
 
 
 # DELETE: Cancelar una reserva (solo participantes para sus reservas).
-@csrf_exempt
-def CancelarReserva(request, id):
-    if request.method == "DELETE":
-        reserva = Reservas.objects.get(id=id)
-        if request.user != reserva.usuario:
-            return JsonResponse(
-                {"error": "¡No eres el titular!"},
-                status=403
-            )
+class CancelarReservaView(APIView):
+    """
+    DELETE: Cancela una reserva. (Solo el titular de la reserva, participante, puede cancelarla)
+    """
+    permission_classes = [IsAuthenticated, IsParticipante]
 
+    def delete(self, request, id):
+        reserva = get_object_or_404(Reservas, id=id)
+        if request.user != reserva.usuario:
+            return Response({"error": "¡No eres el titular!"}, status=status.HTTP_403_FORBIDDEN)
         reserva.delete()
-        return JsonResponse({"mensaje": "Reserva eliminado"})
+        return Response({"mensaje": "Reserva eliminada"}, status=status.HTTP_200_OK)
         ###################################
 
 
