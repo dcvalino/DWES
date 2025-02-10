@@ -213,38 +213,41 @@ class CancelarReservaView(APIView):
 
 # Comentario:
 # GET: Listar comentarios de un evento.
-@csrf_exempt
-def ListarComentarios(request, id):
-    if request.method != "GET":
-        return JsonResponse({"error": "Método no permitido"}, status=405)
+class ListarComentariosView(APIView):
+    """
+    GET: Lista los comentarios de un evento.
+    """
+    permission_classes = [IsAuthenticated]
 
-    evento = get_object_or_404(Eventos, id=id)
-    comentarios = Comentarios.objects.filter(evento=evento)
+    def get(self, request, id):
+        evento = get_object_or_404(Eventos, id=id)
+        comentarios = Comentarios.objects.filter(evento=evento)
+        data = []
+        for comentario in comentarios:
+            data.append({
+                "id": comentario.id,
+                "texto": comentario.texto,
+                "FechaC": comentario.FechaC.strftime("%Y-%m-%d %H:%M:%S") if comentario.FechaC else "",
+            })
+        return Response(data, status=status.HTTP_200_OK)
 
-    data = [
-        {
-            "id": comentario.id,
-            "texto": comentario.texto,
-            "FechaC": comentario.FechaC.strftime("%Y-%m-%d %H:%M:%S")
-        }
-        for comentario in comentarios
-    ]
-
-    return JsonResponse(data, safe=False)
 
 
 # POST: Crear un comentario asociado a un evento (solo usuarios autenticados).
-@csrf_exempt
-def CrearComentario(request, id):
-    if (request.method == "POST"):
-        evento = get_object_or_404(Eventos, id=id)
-        data = json.loads(request.body)
+class CrearComentarioView(APIView):
+    """
+    POST: Crea un comentario asociado a un evento.
+    """
+    permission_classes = [IsAuthenticated]
 
+    def post(self, request, id):
+        evento = get_object_or_404(Eventos, id=id)
+        data = request.data
         comentario = Comentarios.objects.create(
             texto=data.get("texto", ""),
             evento=evento,
         )
-        return JsonResponse({"id": comentario.id, "mensaje": "Se ha creado el comentario"})
+        return Response({"id": comentario.id, "mensaje": "Se ha creado el comentario"}, status=status.HTTP_201_CREATED)
 
         ###################################
 
