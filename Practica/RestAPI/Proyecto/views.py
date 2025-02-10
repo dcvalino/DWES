@@ -5,137 +5,134 @@ from django.http import JsonResponse
 from .models import UsuarioPersonalizado, Eventos, Comentarios, Reservas
 from django.views.decorators.csrf import csrf_exempt
 from django.core.paginator import Paginator
-from django.db.models import F
+from rest_framework import status
+from rest_framework.response import Response
+from rest_framework.views import APIView
+from rest_framework.permissions import IsAuthenticated
+from .permissions import IsOrganizador, IsParticipante
 
 
 # Create your views here.
 
 # CRUD de eventos:
 # GET: Listas todos los eventos disponibles
+class ListarEventosView(APIView):
+    """
+    GET: Lista todos los eventos disponibles con filtros y paginación.
+    """
+    def get(self, request):
+        titulo_filtro = request.query_params.get("titulo", "")
+        fecha_filtro = request.query_params.get("fecha", "")
+        limite = int(request.query_params.get("limite", 5))
+        pagina = int(request.query_params.get("pagina", 1))
 
-def ListarEventos(request):
-    titulo_filtro = request.GET.get("titulo", "")
-    fecha_filtro = request.GET.get("fecha", "")
-    limite = int(request.GET.get("limite", 5))
-    pagina = int(request.GET.get("pagina", 1))
+        eventos = Eventos.objects.all()
+        if titulo_filtro:
+            eventos = eventos.filter(titulo__icontains=titulo_filtro)
+        if fecha_filtro:
+            eventos = eventos.filter(fecha=fecha_filtro)
+        eventos = eventos.order_by('fecha')
 
-    eventos = Eventos.objects.all()
+        paginator = Paginator(eventos, limite)
+        try:
+            eventos_pagina = paginator.page(pagina)
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
-    # Aplicar filtros
-    if titulo_filtro:
-        eventos = eventos.filter(titulo__icontains=titulo_filtro)
-    if fecha_filtro:
-        eventos = eventos.filter(fecha=fecha_filtro)
-
-    # Ordenar por fecha
-    eventos = eventos.order_by('fecha')
-
-    # Paginación
-    paginator = Paginator(eventos, limite)
-
-    try:
-        eventos_pagina = paginator.page(pagina)
-    except Exception as e:
-        return JsonResponse({"error": str(e)}, status=400)
-
-    # Crear respuesta con datos paginados
-    data = {
-        "count": paginator.count,
-        "total_pages": paginator.num_pages,
-        "current_page": pagina,
-        "next": pagina + 1 if eventos_pagina.has_next() else None,
-        "previous": pagina - 1 if eventos_pagina.has_previous() else None,
-        "results": [
-            {
+        results = []
+        for e in eventos_pagina:
+            results.append({
                 "id": e.id,
                 "titulo": e.titulo,
                 "descripcion": e.descripcion,
-                "fecha": e.fecha.strftime("%Y-%m-%d"),
+                "fecha": e.fecha.strftime("%Y-%m-%d") if e.fecha else "",
                 "capacidad": e.capacidad,
                 "url": e.url,
                 "organizador": {
                     "id": e.organizador.id,
                     "nombre": e.organizador.nombre,
-                    "email": e.organizador.email
+                    "email": e.organizador.email,
                 } if e.organizador else None
-            }
-            for e in eventos_pagina
-        ]
-    }
+            })
 
-    return JsonResponse(data, safe=False)
-
-
-# POST: Crear un evento(solo organizadores)
-@csrf_exempt
-def CrearEvento(request):
-    if request.method != "POST":
-        return JsonResponse({"error": "Método no permitido"}, status=405)
-
-    try:
-        data = json.loads(request.body.decode("utf-8"))
-    except json.JSONDecodeError:
-        return JsonResponse({"error": "Datos JSON inválidos"}, status=400)
+        data = {
+            "count": paginator.count,
+            "total_pages": paginator.num_pages,
+            "current_page": pagina,
+            "next": pagina + 1 if eventos_pagina.has_next() else None,
+            "previous": pagina - 1 if eventos_pagina.has_previous() else None,
+            "results": results,
+        }
+        return Response(data, status=status.HTTP_200_OK)
 
 
-    # Buscar organizador en los datos (opcional)
-    organizador_name = data.get("organizador", request.user.id)
-    organizador = get_object_or_404(UsuarioPersonalizado, id=organizador_name)
 
-    evento = Eventos.objects.create(
-        titulo=data.get("titulo", ""),
-        descripcion=data.get("descripcion", ""),
-        fecha=data.get("fecha"),
-        capacidad=data.get("capacidad", 0),
-        url=data.get("url", ""),
-        organizador=organizador  # Asigna el organizador correctamente
-    )
+class CrearEventoView(APIView):
+    """
+    POST: Crea un evento. (Acceso solo para organizadores)
+    """
+    permission_classes = [IsAuthenticated, IsOrganizador]
 
-    return JsonResponse({"id": evento.id, "mensaje": "Evento creado"}, status=201)
+    def post(self, request):
+        data = request.data
+        # Se asume que el usuario autenticado es el organizador
+        organizador = request.user
+        evento = Eventos.objects.create(
+            titulo=data.get("titulo", ""),
+            descripcion=data.get("descripcion", ""),
+            fecha=data.get("fecha"),
+            capacidad=data.get("capacidad", 0),
+            url=data.get("url", ""),
+            organizador=organizador,
+        )
+        return Response({"id": evento.id, "mensaje": "Evento creado"}, status=status.HTTP_201_CREATED)
 
 
 
 # PUT/PATCH: Actualizar un evento (solo organizadores)º
-@csrf_exempt
-def ActualizarEvento(request, id):
-    if request.method not in ["PUT", "PATCH"]:
-        return JsonResponse({"error": "Método no permitido"}, status=405)
+class ActualizarEventoView(APIView):
+    """
+    PUT/PATCH: Actualiza un evento. (Acceso solo para organizadores)
+    """
+    permission_classes = [IsAuthenticated, IsOrganizador]
 
-    try:
-        data = json.loads(request.body.decode("utf-8"))
-    except json.JSONDecodeError:
-        return JsonResponse({"error": "Datos JSON inválidos"}, status=400)
+    def put(self, request, id):
+        data = request.data
+        evento = get_object_or_404(Eventos, id=id)
+        evento.titulo = data.get("titulo", evento.titulo)
+        evento.descripcion = data.get("descripcion", evento.descripcion)
+        evento.fecha = data.get("fecha", evento.fecha)
+        evento.capacidad = data.get("capacidad", evento.capacidad)
+        evento.url = data.get("url", evento.url)
+        if "organizador" in data:
+            evento.organizador = get_object_or_404(UsuarioPersonalizado, id=data.get("organizador"))
+        evento.save()
+        return Response({"mensaje": "Evento actualizado"}, status=status.HTTP_200_OK)
 
-    evento = get_object_or_404(Eventos, id=id)
-
-    # Actualizar solo los campos proporcionados
-    evento.titulo = data.get("titulo", evento.titulo)
-    evento.descripcion = data.get("descripcion", evento.descripcion)
-    evento.fecha = data.get("fecha", evento.fecha)
-    evento.capacidad = data.get("capacidad", evento.capacidad)
-    evento.url = data.get("url", evento.url)
-    evento.organizador = data.get("organizador", evento.organizador)
-
-    evento.save()
-
-    return JsonResponse({"mensaje": "Evento actualizado"})
+    def patch(self, request, id):
+        # Se delega en el método PUT para actualizar parcialmente
+        return self.put(request, id)
 
 # DELETE: Eliminar un evento (solo organizadores)
-@csrf_exempt
+class BorrarEventoView(APIView):
+    """
+    DELETE: Elimina un evento. (Acceso solo para organizadores)
+    """
+    permission_classes = [IsAuthenticated, IsOrganizador]
 
-def BorrarEvento(request, id):
-    if request.method == "DELETE":
-        evento = Eventos.objects.get(id=id)
+    def delete(self, request, id):
+        evento = get_object_or_404(Eventos, id=id)
         evento.delete()
-        return JsonResponse({"mensaje": "Evento eliminado"})
+        return Response({"mensaje": "Evento eliminado"}, status=status.HTTP_200_OK)
 
-            ##################################
+        ##################################
+
+
 # Gestion de reservas:
 
-#GET: Listar reservas de un usuario autenticado.
+# GET: Listar reservas de un usuario autenticado.
 @csrf_exempt
-
-def listarReservas(request,id):
+def listarReservas(request, id):
     if (request.method == 'GET'):
         reservas = Reservas.objects.all()
 
@@ -156,7 +153,8 @@ def listarReservas(request,id):
 
         return JsonResponse(data, safe=False)
 
-#POST: Crear una nueva reserva.
+
+# POST: Crear una nueva reserva.
 @csrf_exempt
 def CrearReserva(request):
     if request.method == "POST":
@@ -172,7 +170,8 @@ def CrearReserva(request):
         )
         return JsonResponse({"id": reserva.id, "mensaje": "Se ha creado la reserva"})
 
-#PUT/PATCH: Actualizar el estado de una reserva (solo organizadores).
+
+# PUT/PATCH: Actualizar el estado de una reserva (solo organizadores).
 @csrf_exempt
 def ActualizarReserva(request, id):
     if request.method not in ["PUT", "PATCH"]:
@@ -198,7 +197,8 @@ def ActualizarReserva(request, id):
 
     return JsonResponse({"mensaje": "Reserva Actualizada"})
 
-#DELETE: Cancelar una reserva (solo participantes para sus reservas).
+
+# DELETE: Cancelar una reserva (solo participantes para sus reservas).
 @csrf_exempt
 def CancelarReserva(request, id):
     if request.method == "DELETE":
@@ -211,9 +211,11 @@ def CancelarReserva(request, id):
 
         reserva.delete()
         return JsonResponse({"mensaje": "Reserva eliminado"})
-            ###################################
-#Comentario:
-#GET: Listar comentarios de un evento.
+        ###################################
+
+
+# Comentario:
+# GET: Listar comentarios de un evento.
 @csrf_exempt
 def ListarComentarios(request, id):
     if request.method != "GET":
@@ -232,7 +234,9 @@ def ListarComentarios(request, id):
     ]
 
     return JsonResponse(data, safe=False)
-#POST: Crear un comentario asociado a un evento (solo usuarios autenticados).
+
+
+# POST: Crear un comentario asociado a un evento (solo usuarios autenticados).
 @csrf_exempt
 def CrearComentario(request, id):
     if (request.method == "POST"):
@@ -245,9 +249,11 @@ def CrearComentario(request, id):
         )
         return JsonResponse({"id": comentario.id, "mensaje": "Se ha creado el comentario"})
 
-            ###################################
-#Usuario:
-#POST: Login
+        ###################################
+
+
+# Usuario:
+# POST: Login
 @csrf_exempt
 def Login(request):
     if request.method != 'POST':
@@ -275,9 +281,7 @@ def Login(request):
     return JsonResponse({"mensaje": "Inicio de sesión exitoso."})
 
 
-
-
-#POST: Register
+# POST: Register
 @csrf_exempt
 def Register(request):
     if request.method != 'POST':
